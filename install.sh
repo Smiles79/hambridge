@@ -4,7 +4,7 @@
 #  HamBridge installer — entry point.
 #
 #  Usage (from GitHub):
-#    curl -sSL https://raw.githubusercontent.com/YOUR_REPO/main/install.sh \
+#    curl -sSL https://raw.githubusercontent.com/Smiles79/hambridge/main/install.sh \
 #      | sudo bash
 #
 #  Usage (local copy):
@@ -33,7 +33,7 @@ else
     HB_REPO_DIR="/tmp/hambridge-install"
     mkdir -p "$HB_REPO_DIR"
     echo "Downloading HamBridge..."
-    curl -sSL https://github.com/YOUR_REPO/archive/main.tar.gz \
+    curl -sSL https://github.com/Smiles79/hambridge/archive/main.tar.gz \
         | tar -xz -C "$HB_REPO_DIR" --strip-components=1
 fi
 export HB_REPO_DIR
