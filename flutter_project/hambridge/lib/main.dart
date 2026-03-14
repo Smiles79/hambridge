@@ -16,18 +16,18 @@ void main() async {
   runApp(
     ChangeNotifierProvider.value(
       value: service,
-      child: const FT891App(),
+      child: const HamBridge(),
     ),
   );
 }
 
-class FT891App extends StatelessWidget {
-  const FT891App({super.key});
+class HamBridge extends StatelessWidget {
+  const HamBridge({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'FT-891 Recorder',
+      title: 'HamBridge',
       debugShowCheckedModeBanner: false,
       theme: _buildTheme(),
       home: const HomeScreen(),
