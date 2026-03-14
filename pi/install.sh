@@ -4,7 +4,7 @@
 #  HamBridge installer — entry point.
 #
 #  Usage (from GitHub):
-#    curl -sSL https://raw.githubusercontent.com/Smiles79/hambridge/main/install.sh \
+#    curl -sSL https://raw.githubusercontent.com/Smiles79/hambridge/main/pi/install.sh \
 #      | sudo bash
 #
 #  Usage (local copy):
@@ -53,7 +53,7 @@ fi
 if [[ -n "$HB_SCRIPT_DIR" && -f "$HB_SCRIPT_DIR/lib/config.sh" ]]; then
     HB_REPO_DIR="$HB_SCRIPT_DIR"
 else
-    HB_REPO_DIR="/tmp/hambridge-install"
+    HB_REPO_DIR="/tmp/hambridge-install/pi"
 
     echo "Downloading HamBridge repository..."
 
