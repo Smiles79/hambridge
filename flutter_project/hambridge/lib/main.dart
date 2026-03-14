@@ -1,45 +1,87 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'services/bridge_service.dart';
+import 'services/gps_service.dart';
 import 'screens/home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
-  final prefs = await SharedPreferences.getInstance();
-  final service = BridgeService();
-  service.saveFolder = prefs.getString('save_folder');
+  // Initialise foreground task service (lock screen persistence)
+  FlutterForegroundTask.init(
+    androidNotificationOptions: AndroidNotificationOptions(
+      channelId:   'hambridge_recording',
+      channelName: 'HamBridge Recording',
+      channelDescription: 'Keeps HamBridge active during recording',
+      channelImportance: NotificationChannelImportance.LOW,
+      priority: NotificationPriority.LOW,
+      iconData: const NotificationIconData(
+        resType: ResourceType.mipmap,
+        resPrefix: ResourcePrefix.ic,
+        name: 'launcher',
+      ),
+    ),
+    iosNotificationOptions: const IOSNotificationOptions(
+      showNotification: true,
+      playSound: false,
+    ),
+    foregroundTaskOptions: const ForegroundTaskOptions(
+      interval: 5000,
+      isOnceEvent: false,
+      autoRunOnBoot: false,
+      allowWakeLock: true,
+      allowWifiLock: true,
+    ),
+  );
+
+  final bridgeService = BridgeService();
+  await bridgeService.loadPrefs();
+
+  final gpsService = GpsService();
+  await gpsService.start();
+
+  // Start foreground task immediately — keeps app visible on lock screen
+  // whenever the app is open, not just during recording (like Google Maps)
+  await FlutterForegroundTask.startService(
+    notificationTitle: 'HamBridge',
+    notificationText: 'Tap to return to HamBridge',
+  );
 
   runApp(
-    ChangeNotifierProvider.value(
-      value: service,
-      child: const HamBridge(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: bridgeService),
+        ChangeNotifierProvider.value(value: gpsService),
+      ],
+      child: const HamBridgeApp(),
     ),
   );
 }
 
-class HamBridge extends StatelessWidget {
-  const HamBridge({super.key});
+class HamBridgeApp extends StatelessWidget {
+  const HamBridgeApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'HamBridge',
-      debugShowCheckedModeBanner: false,
-      theme: _buildTheme(),
-      home: const HomeScreen(),
+    return WithForegroundTask(
+      child: MaterialApp(
+        title: 'HamBridge',
+        debugShowCheckedModeBanner: false,
+        theme: _buildTheme(),
+        home: const HomeScreen(),
+      ),
     );
   }
 
   ThemeData _buildTheme() {
-    const bg       = Color(0xFF0D0F14);
-    const surface  = Color(0xFF161B24);
-    const card     = Color(0xFF1E2535);
-    const accent   = Color(0xFF00E5A0);   // sharp green — radio/scope feel
-    const dimText  = Color(0xFF5A6480);
+    const bg      = Color(0xFF0D0F14);
+    const surface = Color(0xFF161B24);
+    const card    = Color(0xFF1E2535);
+    const accent  = Color(0xFF00E5A0);
+    const dimText = Color(0xFF5A6480);
 
     return ThemeData(
       useMaterial3: true,
@@ -60,7 +102,6 @@ class HamBridge extends StatelessWidget {
         ),
       ),
       textTheme: const TextTheme(
-        // Display font: monospaced for frequency readouts
         displayLarge: TextStyle(
           fontFamily: 'monospace',
           color: accent,
