@@ -24,17 +24,30 @@
 set -e  # exit immediately on any error
 
 # ── Locate repo dir ───────────────────────────────────────────────────────────
-# When run via curl | bash, $0 is "bash" so we use a temp dir.
-# When run as a local file, we use the script's own directory.
-if [ -f "$0" ] && [ "$0" != "bash" ]; then
-    HB_REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Determines whether we are running from a local checkout or being piped
+# from curl. In both cases we end up with a full repo in HB_REPO_DIR before
+# any other step runs.
+#
+# Detection: check if lib/config.sh exists alongside the current script.
+# BASH_SOURCE[0] works whether the script is run directly or via sudo bash.
+# When piped from curl, BASH_SOURCE[0] is empty so the -f test fails and
+# we fall through to downloading the repo.
+
+HB_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo "")"
+
+if [ -n "$HB_SCRIPT_DIR" ] && [ -f "$HB_SCRIPT_DIR/lib/config.sh" ]; then
+    # Running from a local copy that has the full repo structure
+    HB_REPO_DIR="$HB_SCRIPT_DIR"
 else
-    # Downloaded via curl — unzip the repo from GitHub first
+    # No local lib/ found — download the full repo from GitHub
     HB_REPO_DIR="/tmp/hambridge-install"
+    rm -rf "$HB_REPO_DIR"
     mkdir -p "$HB_REPO_DIR"
     echo "Downloading HamBridge..."
     curl -sSL https://github.com/Smiles79/hambridge/archive/main.tar.gz \
-        | tar -xz -C "$HB_REPO_DIR" --strip-components=1
+        -o /tmp/hambridge.tar.gz
+    tar -xz -C "$HB_REPO_DIR" --strip-components=1 -f /tmp/hambridge.tar.gz
+    rm -f /tmp/hambridge.tar.gz
 fi
 export HB_REPO_DIR
 
