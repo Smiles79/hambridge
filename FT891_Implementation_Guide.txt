@@ -1,0 +1,564 @@
+================================================================================
+  FT-891 RECORDER — COMPLETE IMPLEMENTATION GUIDE
+  Yaesu FT-891 + Digirig DR-891 + Raspberry Pi + Android (Flutter)
+================================================================================
+
+OVERVIEW
+--------
+This system lets you press a button on your Android phone to:
+  1. Query the FT-891's current frequency via CAT
+  2. Receive and stream RX audio from the radio
+  3. Save a WAV file on your phone named: {freq}_{date}_{time}_{grid}.wav
+
+The radio's microphone, PTT, and all front-panel functions remain completely
+unaffected. The DR-891 acts as a passive RX audio tap and CAT read interface only.
+
+
+HARDWARE REQUIRED
+-----------------
+  - Yaesu FT-891 transceiver
+  - Digirig DR-891 (includes both radio-side cables)
+  - Raspberry Pi Zero 2 W (or Pi 4)
+  - USB-C OTG adapter (for Pi Zero) or USB-C cable (for Pi 4)
+  - MicroSD card (16GB+) and power supply
+
+
+PHYSICAL CONNECTIONS
+--------------------
+  FT-891 MiniDin6 (rear ACC port) ──[black cable]──┐
+  FT-891 front USB-B port          ──[red cable]────┤ DR-891 ──[USB-C]──► Raspberry Pi
+                                                    └──────────────────────────────────
+
+  Two cables on the radio side, one USB-C to the Pi.
+
+IMPORTANT — DR-891 MODIFICATION:
+  To ensure the Pi can never accidentally key the radio, cut the trace labeled
+  "GPIO" on the back of the DR-891 PCB. This permanently disables the hardware
+  PTT line. Since we only ever read from the radio (never transmit), this is safe
+  and necessary.
+
+
+================================================================================
+PART 1: FT-891 RADIO MENU SETTINGS
+================================================================================
+
+Long-press the F button to enter the menu. Navigate with the MULTI knob.
+
+  Menu 05-06  CAT RATE        → 38400
+  Menu 05-07  CAT TOT         → 1000ms
+  Menu 05-08  CAT RTS         → DISABLE
+  Menu 08-11  DATA OUT LEVEL  → 50
+
+That's all. Stay in whatever mode you normally operate (SSB, AM, CW, etc.).
+Do NOT switch to DATA mode — the ACC audio out is active regardless of mode.
+
+
+================================================================================
+PART 2: RASPBERRY PI SETUP
+================================================================================
+
+STEP 1 — Flash Raspberry Pi OS Lite
+-------------------------------------
+Use Raspberry Pi Imager. Choose "Raspberry Pi OS Lite (64-bit)".
+In the imager's advanced settings before flashing:
+  - Hostname:  ft891bridge
+  - Enable SSH: yes
+  - WiFi SSID and password: your network
+  - Username: pi
+  - Password: (set something secure)
+
+Flash to MicroSD, insert into Pi, power on.
+
+
+STEP 2 — SSH in and install dependencies
+------------------------------------------
+  ssh pi@ft891bridge.local
+
+  sudo apt update && sudo apt upgrade -y
+  sudo apt install -y python3-pip python3-dev \
+      hamlib-utils alsa-utils bluetooth bluez \
+      python3-bluetooth libbluetooth-dev
+
+
+STEP 3 — Identify DR-891 devices
+-----------------------------------
+With DR-891 plugged in and FT-891 powered on:
+
+  ls /dev/ttyUSB*
+  # Expect two devices, e.g. /dev/ttyUSB0 and /dev/ttyUSB1
+  # Use the HIGHER numbered one for CAT
+
+  arecord -l
+  # The DR-891 will appear as a USB Audio Device — note the card number
+
+
+STEP 4 — Create a udev rule for stable device names
+-----------------------------------------------------
+Without this, ttyUSB numbers can swap between reboots.
+
+  sudo nano /etc/udev/rules.d/99-ft891.rules
+
+Paste:
+  SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea70", SYMLINK+="ft891cat"
+
+  sudo udevadm control --reload-rules
+  sudo udevadm trigger
+
+After this, the CAT port is always available as /dev/ft891cat.
+
+
+STEP 5 — Test CAT manually
+----------------------------
+  rigctl -m 136 -r /dev/ft891cat -s 38400 f
+
+This should return the current VFO frequency in Hz, e.g.:
+  14225000
+
+If it works, CAT is confirmed good. (Model 136 = FT-891 in hamlib.)
+
+
+STEP 6 — Test audio recording
+--------------------------------
+  arecord -l
+  # Note card number, e.g. "card 1"
+
+  arecord -D hw:1,0 -f S16_LE -r 48000 -c 1 -d 10 test.wav
+  # Records 10 seconds. Transfer file to verify audio is present.
+
+Adjust the card number (hw:X,0) to match what arecord -l shows for USB Audio.
+
+
+STEP 7 — Create the bridge daemon
+------------------------------------
+  nano /home/pi/ft891_bridge.py
+
+Paste the following complete script:
+
+-------------------- BEGIN ft891_bridge.py --------------------
+#!/usr/bin/env python3
+"""
+FT-891 Bridge Daemon
+- On demand: sends FA; CAT command to get frequency
+- Streams raw PCM audio from DR-891 to phone over Bluetooth RFCOMM
+- Phone assembles and saves the WAV file
+- Radio mic, PTT, and all front panel functions unaffected
+"""
+
+import bluetooth
+import socket
+import json
+import datetime
+import subprocess
+import threading
+import logging
+import struct
+import time
+import os
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s %(message)s'
+)
+
+RIGCTLD_HOST  = "127.0.0.1"
+RIGCTLD_PORT  = 4532
+SAMPLE_RATE   = 48000
+CHANNELS      = 1
+SAMPLE_WIDTH  = 2          # 16-bit = 2 bytes
+CHUNK_SIZE    = 4096       # bytes per audio chunk sent to phone
+
+def get_audio_device():
+    result = subprocess.run(['arecord', '-l'], capture_output=True, text=True)
+    for line in result.stdout.splitlines():
+        if 'USB' in line.upper() and 'card' in line:
+            card_num = line.split('card ')[1].split(':')[0].strip()
+            logging.info(f"Audio device: card {card_num}")
+            return f"hw:{card_num},0"
+    logging.warning("USB audio not found, using hw:1,0")
+    return "hw:1,0"
+
+AUDIO_DEVICE = get_audio_device()
+
+def get_frequency():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(3)
+        s.connect((RIGCTLD_HOST, RIGCTLD_PORT))
+        s.sendall(b'f\n')
+        response = s.recv(1024).decode().strip()
+        return int(response)
+
+def make_wav_header(sample_rate, channels, sample_width, num_samples=0):
+    byte_rate   = sample_rate * channels * sample_width
+    block_align = channels * sample_width
+    data_size   = num_samples * channels * sample_width
+    chunk_size  = 36 + data_size
+    header = struct.pack('<4sI4s', b'RIFF', chunk_size, b'WAVE')
+    header += struct.pack('<4sIHHIIHH',
+        b'fmt ', 16, 1, channels, sample_rate,
+        byte_rate, block_align, sample_width * 8)
+    header += struct.pack('<4sI', b'data', data_size)
+    return header
+
+def stream_audio(client_sock, stop_event):
+    proc = subprocess.Popen(
+        ['arecord', '-D', AUDIO_DEVICE, '-f', 'S16_LE',
+         '-r', str(SAMPLE_RATE), '-c', str(CHANNELS),
+         '--buffer-time=500000', '-t', 'raw', '-'],
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
+    )
+    try:
+        while not stop_event.is_set():
+            chunk = proc.stdout.read(CHUNK_SIZE)
+            if not chunk:
+                break
+            frame = struct.pack('<I', len(chunk)) + chunk
+            client_sock.sendall(frame)
+    except Exception as e:
+        logging.error(f"Audio stream error: {e}")
+    finally:
+        proc.terminate()
+        proc.wait()
+        try:
+            client_sock.sendall(struct.pack('<I', 0))  # end sentinel
+        except Exception:
+            pass
+        logging.info("Audio stream ended")
+
+def send_json(sock, data):
+    sock.sendall((json.dumps(data) + '\n').encode())
+
+def handle_client(client_sock, addr):
+    logging.info(f"Connected: {addr}")
+    stop_event   = None
+    audio_thread = None
+    recording    = False
+
+    try:
+        while True:
+            raw = b''
+            while not raw.endswith(b'\n'):
+                chunk = client_sock.recv(256)
+                if not chunk:
+                    raise ConnectionResetError("Client disconnected")
+                raw += chunk
+
+            try:
+                cmd = json.loads(raw.decode().strip())
+            except json.JSONDecodeError:
+                send_json(client_sock, {"status": "error", "message": "bad JSON"})
+                continue
+
+            action = cmd.get("action", "")
+
+            if action == "ping":
+                send_json(client_sock, {"status": "ok", "message": "pong"})
+
+            elif action == "start_recording":
+                if recording:
+                    send_json(client_sock, {"status": "error", "message": "already recording"})
+                    continue
+
+                grid    = cmd.get("grid", "UNKNOWN").upper()
+                utc_now = datetime.datetime.utcnow()
+                freq_hz = get_frequency()
+
+                freq_str = f"{freq_hz / 1_000_000:.4f}MHz"
+                date_str = utc_now.strftime("%Y%m%d")
+                time_str = utc_now.strftime("%H%M%S")
+                filename = f"{freq_str}_{date_str}_{time_str}_{grid}.wav"
+
+                wav_header = make_wav_header(SAMPLE_RATE, CHANNELS, SAMPLE_WIDTH)
+                meta = {
+                    "status":          "recording",
+                    "filename":        filename,
+                    "freq_hz":         freq_hz,
+                    "freq_mhz":        round(freq_hz / 1_000_000, 4),
+                    "utc":             utc_now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "grid":            grid,
+                    "sample_rate":     SAMPLE_RATE,
+                    "channels":        CHANNELS,
+                    "sample_width":    SAMPLE_WIDTH,
+                    "wav_header_hex":  wav_header.hex()
+                }
+                send_json(client_sock, meta)
+
+                stop_event   = threading.Event()
+                audio_thread = threading.Thread(
+                    target=stream_audio,
+                    args=(client_sock, stop_event),
+                    daemon=True
+                )
+                audio_thread.start()
+                recording = True
+                logging.info(f"Recording started: {filename}")
+
+            elif action == "stop_recording":
+                if not recording:
+                    send_json(client_sock, {"status": "error", "message": "not recording"})
+                    continue
+                stop_event.set()
+                audio_thread.join(timeout=5)
+                recording = False
+                send_json(client_sock, {"status": "stopped"})
+                logging.info("Recording stopped")
+
+            else:
+                send_json(client_sock, {"status": "error", "message": f"unknown action: {action}"})
+
+    except (ConnectionResetError, BrokenPipeError, OSError) as e:
+        logging.info(f"Client disconnected: {e}")
+    except Exception as e:
+        logging.error(f"Unexpected error: {e}")
+    finally:
+        if stop_event:
+            stop_event.set()
+        client_sock.close()
+
+def main():
+    logging.info("Starting rigctld...")
+    subprocess.Popen(
+        ['rigctld', '-m', '136', '-r', '/dev/ft891cat', '-s', '38400'],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
+    time.sleep(2)
+
+    server_sock = bluetooth.BluetoothSocket(bluetooth.RFCOMM)
+    server_sock.bind(("", bluetooth.PORT_ANY))
+    server_sock.listen(1)
+    bluetooth.advertise_service(
+        server_sock, "FT891Bridge",
+        service_id=bluetooth.SERIAL_PORT_CLASS,
+        service_classes=[bluetooth.SERIAL_PORT_CLASS],
+        profiles=[bluetooth.SERIAL_PORT_PROFILE]
+    )
+    port = server_sock.getsockname()[1]
+    logging.info(f"Listening on RFCOMM port {port}")
+
+    while True:
+        client_sock, addr = server_sock.accept()
+        t = threading.Thread(
+            target=handle_client, args=(client_sock, addr), daemon=True)
+        t.start()
+
+if __name__ == "__main__":
+    main()
+-------------------- END ft891_bridge.py --------------------
+
+
+STEP 8 — Create the systemd service
+--------------------------------------
+  sudo nano /etc/systemd/system/ft891bridge.service
+
+Paste:
+  [Unit]
+  Description=FT-891 Bluetooth Bridge
+  After=bluetooth.target
+  Wants=bluetooth.target
+
+  [Service]
+  ExecStart=/usr/bin/python3 /home/pi/ft891_bridge.py
+  Restart=on-failure
+  RestartSec=5
+  User=pi
+
+  [Install]
+  WantedBy=multi-user.target
+
+Then enable and start it:
+  sudo systemctl daemon-reload
+  sudo systemctl enable ft891bridge
+  sudo systemctl start ft891bridge
+  sudo systemctl status ft891bridge
+
+
+STEP 9 — Pair the Android phone
+----------------------------------
+On the Pi:
+  sudo bluetoothctl
+  > power on
+  > discoverable on
+  > pairable on
+  > agent on
+  > default-agent
+
+On your Android phone:
+  Settings → Bluetooth → Scan
+  Select "ft891bridge" and accept pairing on both devices.
+
+Back on the Pi in bluetoothctl:
+  > trust XX:XX:XX:XX:XX:XX   (your phone's MAC address)
+  > quit
+
+Make the Pi permanently discoverable:
+  sudo nano /etc/bluetooth/main.conf
+
+Add/edit:
+  [General]
+  DiscoverableTimeout = 0
+
+  [Policy]
+  AutoEnable=true
+
+
+================================================================================
+PART 3: ANDROID APP (FLUTTER)
+================================================================================
+
+PROJECT STRUCTURE
+-----------------
+  ft891_recorder/
+  ├── pubspec.yaml
+  ├── android/app/src/main/AndroidManifest.xml
+  └── lib/
+      ├── main.dart
+      ├── services/
+      │   └── bridge_service.dart
+      ├── screens/
+      │   ├── home_screen.dart
+      │   └── settings_screen.dart
+      └── widgets/
+          ├── frequency_display.dart
+          ├── record_button.dart
+          ├── status_bar.dart
+          ├── device_sheet.dart
+          └── recordings_sheet.dart
+
+All source files are provided separately as downloadable .dart files in the
+conversation. See the Flutter project files attached.
+
+
+FLUTTER DEPENDENCIES (pubspec.yaml)
+-------------------------------------
+  flutter_blue_classic: ^0.1.4    — Bluetooth Classic RFCOMM/SPP
+  file_picker: ^8.0.0             — native folder picker
+  shared_preferences: ^2.2.3      — persist save folder choice
+  permission_handler: ^11.3.1     — runtime Bluetooth permissions
+  provider: ^6.1.2                — state management
+  path: ^1.9.0
+  intl: ^0.19.0
+
+
+BUILD INSTRUCTIONS
+-------------------
+  1. Install Flutter SDK (flutter.dev)
+  2. Place all source files in the project structure above
+  3. Run:
+       flutter pub get
+       flutter run          # with Android device connected via USB
+     Or build a release APK:
+       flutter build apk --release
+       # APK will be at build/app/outputs/flutter-apk/app-release.apk
+
+
+ANDROID PERMISSIONS REQUIRED (AndroidManifest.xml)
+----------------------------------------------------
+  - BLUETOOTH_CONNECT       (Android 12+)
+  - BLUETOOTH_SCAN          (Android 12+)
+  - BLUETOOTH               (Android 11 and below)
+  - BLUETOOTH_ADMIN         (Android 11 and below)
+  - READ_EXTERNAL_STORAGE   (Android 12 and below)
+  - WRITE_EXTERNAL_STORAGE  (Android 9 and below)
+  - MANAGE_EXTERNAL_STORAGE (Android 11+, for custom folder access)
+
+
+APP USAGE
+----------
+  1. Open the app
+  2. Go to Settings → Save Folder and choose where to save recordings
+  3. Tap Connect and select "ft891bridge" from the paired device list
+  4. Enter your Maidenhead grid square (e.g. EM72)
+  5. Press START RECORDING
+       - App sends {"action":"start_recording","grid":"EM72"} to Pi
+       - Pi sends FA; to radio, gets frequency back
+       - Pi replies with filename, frequency, WAV header
+       - Pi begins streaming raw PCM audio frames
+       - App writes WAV header then appends audio chunks to file
+  6. Press STOP RECORDING
+       - App sends {"action":"stop_recording"} to Pi
+       - Pi stops arecord, sends end-of-stream sentinel
+       - App fixes up WAV header byte counts
+       - File is complete and saved
+
+
+================================================================================
+PROTOCOL REFERENCE
+================================================================================
+
+All JSON messages are newline-terminated (\n).
+Audio is sent as binary frames: [4-byte little-endian length][PCM bytes].
+End of stream is signaled by a 4-byte frame of 0x00000000.
+
+  Phone → Pi:
+    {"action": "ping"}
+    {"action": "start_recording", "grid": "EM72"}
+    {"action": "stop_recording"}
+
+  Pi → Phone (JSON):
+    {"status": "ok", "message": "pong"}
+    {"status": "recording", "filename": "14.2250MHz_20260313_183045_EM72.wav",
+     "freq_hz": 14225000, "freq_mhz": 14.225, "utc": "2026-03-13T18:30:45Z",
+     "grid": "EM72", "sample_rate": 48000, "channels": 1, "sample_width": 2,
+     "wav_header_hex": "52494646..."}
+    {"status": "stopped"}
+    {"status": "error", "message": "..."}
+
+  Pi → Phone (binary audio frames, after "recording" JSON):
+    [0x00001000][4096 bytes PCM] × N
+    [0x00000000]                    ← end sentinel
+
+
+================================================================================
+RESULTING FILENAMES
+================================================================================
+
+  14.2250MHz_20260313_183045_EM72.wav
+  │           │        │      │
+  │           │        │      └─ Maidenhead grid (from phone app)
+  │           │        └──────── UTC time HHMMSS (from Pi at moment of press)
+  │           └───────────────── UTC date YYYYMMDD
+  └───────────────────────────── VFO-A frequency (from FT-891 via CAT)
+
+Audio format: 48kHz, 16-bit, mono PCM WAV. Plays in any audio application.
+
+
+================================================================================
+WHAT THE RADIO NEVER KNOWS ABOUT
+================================================================================
+
+The microphone jack, PTT, front panel controls, and all normal operation are
+completely unaffected. The DR-891 (with GPIO PTT trace cut) only:
+  - Reads the RX audio out pin on the MiniDin6 ACC port (always active,
+    regardless of mode or mic/PTT state)
+  - Passes CAT read commands through to the front USB port
+
+The Pi never issues a PTT command. The radio cannot be keyed by this system.
+
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+  rigctl returns nothing or errors:
+    - Check FT-891 Menu 05-06 is set to 38400
+    - Check Menu 05-08 (CAT RTS) is DISABLE
+    - Verify /dev/ft891cat exists: ls -la /dev/ft891cat
+    - Try both ttyUSB numbers manually
+
+  No audio device found:
+    - Run: arecord -l  — look for USB Audio Device
+    - Ensure DR-891 black cable is fully seated in MiniDin6
+    - Try unplugging and replugging the DR-891 USB-C
+
+  Phone won't see Pi in Bluetooth:
+    - Confirm pairing was done in Android Bluetooth settings first
+    - Check bluetoothctl: devices  — phone should be listed as trusted
+    - Restart the service: sudo systemctl restart ft891bridge
+
+  WAV file is silent:
+    - Check FT-891 Menu 08-11 DATA OUT LEVEL — increase if needed
+    - Tune to an active frequency and verify you hear audio on the radio speaker
+    - Run test recording directly on Pi: arecord -D hw:1,0 -d 5 test.wav
+
+================================================================================
+END OF GUIDE
+================================================================================

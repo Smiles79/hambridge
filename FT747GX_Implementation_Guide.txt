@@ -1,0 +1,641 @@
+================================================================================
+  FT-747GX RECORDER — COMPLETE IMPLEMENTATION GUIDE
+  Yaesu FT-747GX + Digirig Mobile + Raspberry Pi + Android (Flutter)
+================================================================================
+
+OVERVIEW
+--------
+This system lets you press a button on your Android phone to:
+  1. Query the FT-747GX's current frequency via CAT
+  2. Receive and stream RX audio from the radio
+  3. Save a WAV file on your phone named: {freq}_{date}_{time}_{grid}.wav
+
+The radio's microphone, PTT, and all front-panel functions remain completely
+unaffected. The Digirig Mobile handles audio/PTT passthrough, and a separate
+CAT cable handles computer control via the rear 6-pin DIN port.
+
+IMPORTANT DIFFERENCES FROM THE FT-891
+--------------------------------------
+The FT-747GX is a vintage radio and differs from modern radios in several ways
+that affect this setup:
+
+  1. NO USB PORT — CAT control uses a dedicated 6-pin DIN connector on the
+     rear panel, not USB. A separate CAT cable is required.
+
+  2. TTL SERIAL WITH OPEN EMITTER OUTPUT — The FT-747GX serial output (SO pin)
+     is driven by an emitter follower with no pull-down resistor to ground.
+     Many USB-to-TTL converters will not work correctly without a resistor
+     added between the SO pin and ground. See the hardware section below.
+
+  3. CAT SPEED IS 4800 BAUD — Much slower than modern radios. The response
+     to a frequency query takes nearly 1 full second at this speed.
+
+  4. AUDIO OUTPUT IS RCA — Not MiniDin6. The audio cable wiring is different.
+
+  5. TWO USB CONNECTIONS TO THE PI — Unlike the DR-891 which consolidates
+     everything into one USB, the Digirig Mobile handles audio/PTT and the
+     CAT cable is a completely separate USB device. A USB hub is required
+     on the Pi Zero's OTG port.
+
+  6. NO RADIO MENU SETTINGS NEEDED — Unlike the FT-891, the FT-747GX requires
+     no menu configuration. Everything is set in hardware and software.
+
+
+================================================================================
+HARDWARE REQUIRED
+================================================================================
+
+  - Yaesu FT-747GX transceiver
+  - Digirig Mobile
+  - Custom audio/PTT cable (see wiring below — you build this yourself
+    or order from a cable maker)
+  - FT-747GX CAT cable (6-pin DIN to USB, FTDI-based)
+    Search: "Yaesu FT-747GX CAT cable USB" — available on Amazon ~$10-15
+    Compatible with: FT-747GX, FT-767GX, FT-990, FT-1000, FT-736R
+  - 5.6K ohm resistor (see CAT resistor fix below — critical)
+  - Raspberry Pi Zero 2 W
+  - Micro USB OTG cable (NOT a regular micro USB cable — needs OTG wiring)
+  - Small powered USB hub (connects to Pi Zero OTG port)
+  - MicroSD card (16GB+, Class 10)
+  - 12V to 5V USB buck converter (to power Pi from radio's 12V supply)
+  - MicroSD to USB adapter (for your computer to flash the OS)
+
+
+================================================================================
+PHYSICAL CONNECTIONS
+================================================================================
+
+  FT-747GX GX16-8 MIC port ──[audio/PTT cable]──→ Digirig Mobile ──[USB-C]──┐
+  FT-747GX RCA AF OUT ───────[audio/PTT cable]──→ Digirig Mobile             │
+  FT-747GX rear 6-pin DIN ───[CAT cable]──────────────────────────[USB-A]────┤
+                                                                              ↓
+                                                              USB Hub ──→ Raspberry Pi Zero 2W
+                                                                (OTG port)
+
+TWO USB devices connect to the hub:
+  - Digirig Mobile USB-C → hub (audio + PTT)
+  - CAT cable USB-A → hub (CAT serial)
+
+
+AUDIO/PTT CABLE WIRING (Digirig Mobile ↔ FT-747GX)
+----------------------------------------------------
+This cable connects the Digirig Mobile's 3.5mm TRRS audio jack to the
+FT-747GX's GX16-8 microphone connector AND the RCA audio output jack.
+
+You will need:
+  - One 3.5mm TRRS plug (4-conductor, Tip/Ring1/Ring2/Sleeve)
+  - One GX16-8 male connector (8-pin circular)
+  - One RCA plug
+
+Wiring:
+
+  3.5mm TRRS Tip     (RIG_AFOUT) ──→ RCA center pin (AF OUT on radio)
+  3.5mm TRRS Ring 1  (RIG_AFIN)  ──→ GX16-8 pin 8 (MIC audio in)
+  3.5mm TRRS Ring 2  (RIG_PTT)   ──→ GX16-8 pin 6 (PTT)
+  3.5mm TRRS Sleeve  (GND)       ──→ GX16-8 pin 7 (GND)
+                                      RCA outer ring (GND)
+
+Note: GND from both the RCA and GX16-8 pin 7 connect to the TRRS sleeve.
+The RCA tip (AF OUT) carries the received audio to the Digirig's audio input.
+
+IMPORTANT: Since you are only monitoring RX audio and never transmitting via
+the Digirig, the MIC (Ring 1) and PTT (Ring 2) connections are wired but will
+never be driven by the Pi. The Pi software never activates PTT.
+
+
+CAT CABLE — CRITICAL RESISTOR FIX
+-----------------------------------
+The FT-747GX has a known hardware issue with its CAT serial output. The SO
+(serial out) pin is driven by an open emitter circuit with no pull-down
+resistor to ground. Without a pull-down resistor, most USB-to-TTL converters
+will not see a valid logic low signal — the line just sits at +5V.
+
+Fix: Add a 5.6K ohm resistor between the SO pin of the 6-pin DIN connector
+and ground. Some pre-made CAT cables include this resistor internally. If yours
+does not, you can either:
+
+  a) Open the DIN connector housing and solder a 5.6K resistor between
+     pin 3 (SO) and pin 1 (GND) of the 6-pin DIN connector, or
+
+  b) If you have access to the radio's internals, fit the resistor
+     at the CAT connector pins inside the radio.
+
+6-pin DIN pinout for FT-747GX CAT connector:
+  Pin 1 — GND
+  Pin 2 — SI (Serial In — data TO the radio)
+  Pin 3 — SO (Serial Out — data FROM the radio) ← add 5.6K to GND here
+  Pin 4 — +5V (do not connect)
+  Pin 5 — NC
+  Pin 6 — NC
+
+Without this resistor, rigctld will time out and frequency queries will fail.
+
+
+================================================================================
+PART 1: FT-747GX RADIO SETTINGS
+================================================================================
+
+No menu settings are required on the FT-747GX. Unlike modern Yaesu radios,
+there are no CAT baud rate or RTS menus. The CAT speed is fixed at 4800 baud
+and is configured in the software, not the radio.
+
+Simply ensure:
+  - The radio is powered on
+  - The CAT cable is connected to the rear 6-pin DIN port
+  - The audio/PTT cable is connected to the GX16-8 MIC port and RCA AF OUT
+
+
+================================================================================
+PART 2: RASPBERRY PI SETUP
+================================================================================
+
+STEP 1 — Flash Raspberry Pi OS Lite
+-------------------------------------
+Use Raspberry Pi Imager. Choose "Raspberry Pi OS Lite (64-bit)".
+In the imager's advanced settings before flashing:
+  - Hostname:  ft891bridge   (or ft747bridge if you prefer)
+  - Enable SSH: yes
+  - WiFi SSID and password: your network (or leave blank for AP mode)
+  - Username: pi
+  - Password: (set something secure)
+
+Flash to MicroSD, insert into Pi, power on.
+SSH in after ~90 seconds:
+  ssh pi@ft747bridge.local
+
+
+STEP 2 — Install dependencies
+--------------------------------
+  sudo apt update && sudo apt upgrade -y
+  sudo apt install -y python3-pip python3-dev \
+      hamlib-utils alsa-utils bluetooth bluez \
+      python3-bluetooth libbluetooth-dev
+
+
+STEP 3 — Connect hardware and identify devices
+------------------------------------------------
+With all cables connected and both the Digirig Mobile and CAT cable plugged
+into the USB hub, and the FT-747GX powered on:
+
+  ls /dev/ttyUSB*
+  # Expect two devices, e.g. /dev/ttyUSB0 and /dev/ttyUSB1
+  # One is the Digirig Mobile (CP210x chip)
+  # One is the CAT cable (FTDI chip)
+
+  arecord -l
+  # Digirig Mobile will appear as a USB Audio Device
+
+To identify which ttyUSB is which:
+  udevadm info -a -n /dev/ttyUSB0 | grep idVendor
+  udevadm info -a -n /dev/ttyUSB1 | grep idVendor
+  # FTDI CAT cable:    idVendor == "0403"
+  # Digirig (CP210x):  idVendor == "10c4"
+
+The FTDI device (0403) is your CAT port.
+
+
+STEP 4 — Create udev rules for stable device names
+-----------------------------------------------------
+  sudo nano /etc/udev/rules.d/99-ft747.rules
+
+Paste:
+  # FT-747GX CAT cable (FTDI)
+  SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", SYMLINK+="ft747cat"
+
+  sudo udevadm control --reload-rules
+  sudo udevadm trigger
+
+After this, the CAT port is always /dev/ft747cat regardless of plug order.
+
+
+STEP 5 — Test CAT
+-------------------
+  rigctl -m 105 -r /dev/ft747cat -s 4800 \
+    --set-conf=serial_stopbits=2,dtr_state=off,rts_state=off f
+
+This should return the current VFO frequency in Hz, e.g.:
+  14225000
+
+Note: The response takes nearly 1 full second — this is normal for the
+FT-747GX at 4800 baud. Be patient.
+
+If you get a timeout:
+  1. Check the 5.6K resistor is installed on the SO pin
+  2. Try adding write_delay: rigctl ... --set-conf=write_delay=50 f
+  3. Try both ttyUSB numbers in case udev hasn't applied yet
+
+If you see "CAT" flash briefly on the radio display but rigctl still times out,
+the radio is receiving commands but the SO pull-down resistor is missing.
+This confirms the resistor fix is needed.
+
+
+STEP 6 — Test audio recording
+--------------------------------
+  arecord -l
+  # Note the card number for the Digirig Mobile USB Audio Device
+
+  arecord -D hw:1,0 -f S16_LE -r 48000 -c 1 -d 10 test.wav
+  # Records 10 seconds — adjust card number to match arecord -l output
+
+Transfer and verify the file has audio. If silent, check:
+  - RCA cable is seated in AF OUT on the radio
+  - Adjust AF OUT level on the radio (the AF GAIN control affects this)
+
+
+STEP 7 — Create the bridge daemon
+------------------------------------
+  nano /home/pi/ft747_bridge.py
+
+Paste the following complete script. The only differences from the FT-891
+version are in the rigctld parameters:
+
+-------------------- BEGIN ft747_bridge.py --------------------
+#!/usr/bin/env python3
+"""
+FT-747GX Bridge Daemon
+- On demand: sends CAT UPDATE command to get frequency (via hamlib)
+- Streams raw PCM audio from Digirig Mobile to phone over Bluetooth RFCOMM
+- Phone assembles and saves the WAV file
+- Radio mic, PTT, and all front panel functions unaffected
+"""
+
+import bluetooth
+import socket
+import json
+import datetime
+import subprocess
+import threading
+import logging
+import struct
+import time
+import os
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s %(message)s'
+)
+
+RIGCTLD_HOST  = "127.0.0.1"
+RIGCTLD_PORT  = 4532
+SAMPLE_RATE   = 48000
+CHANNELS      = 1
+SAMPLE_WIDTH  = 2
+CHUNK_SIZE    = 4096
+
+def get_audio_device():
+    result = subprocess.run(['arecord', '-l'], capture_output=True, text=True)
+    for line in result.stdout.splitlines():
+        if 'USB' in line.upper() and 'card' in line:
+            card_num = line.split('card ')[1].split(':')[0].strip()
+            logging.info(f"Audio device: card {card_num}")
+            return f"hw:{card_num},0"
+    logging.warning("USB audio not found, using hw:1,0")
+    return "hw:1,0"
+
+AUDIO_DEVICE = get_audio_device()
+
+def get_frequency():
+    """
+    Query rigctld for current frequency.
+    Note: FT-747GX takes ~1 second to respond at 4800 baud — timeout is set
+    generously to 5 seconds to accommodate this.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(5)   # longer timeout for slow FT-747GX response
+        s.connect((RIGCTLD_HOST, RIGCTLD_PORT))
+        s.sendall(b'f\n')
+        response = s.recv(1024).decode().strip()
+        return int(response)
+
+def make_wav_header(sample_rate, channels, sample_width, num_samples=0):
+    byte_rate   = sample_rate * channels * sample_width
+    block_align = channels * sample_width
+    data_size   = num_samples * channels * sample_width
+    chunk_size  = 36 + data_size
+    header = struct.pack('<4sI4s', b'RIFF', chunk_size, b'WAVE')
+    header += struct.pack('<4sIHHIIHH',
+        b'fmt ', 16, 1, channels, sample_rate,
+        byte_rate, block_align, sample_width * 8)
+    header += struct.pack('<4sI', b'data', data_size)
+    return header
+
+def stream_audio(client_sock, stop_event):
+    proc = subprocess.Popen(
+        ['arecord', '-D', AUDIO_DEVICE, '-f', 'S16_LE',
+         '-r', str(SAMPLE_RATE), '-c', str(CHANNELS),
+         '--buffer-time=500000', '-t', 'raw', '-'],
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
+    )
+    try:
+        while not stop_event.is_set():
+            chunk = proc.stdout.read(CHUNK_SIZE)
+            if not chunk:
+                break
+            frame = struct.pack('<I', len(chunk)) + chunk
+            client_sock.sendall(frame)
+    except Exception as e:
+        logging.error(f"Audio stream error: {e}")
+    finally:
+        proc.terminate()
+        proc.wait()
+        try:
+            client_sock.sendall(struct.pack('<I', 0))
+        except Exception:
+            pass
+        logging.info("Audio stream ended")
+
+def send_json(sock, data):
+    sock.sendall((json.dumps(data) + '\n').encode())
+
+def handle_client(client_sock, addr):
+    logging.info(f"Connected: {addr}")
+    stop_event   = None
+    audio_thread = None
+    recording    = False
+
+    try:
+        while True:
+            raw = b''
+            while not raw.endswith(b'\n'):
+                chunk = client_sock.recv(256)
+                if not chunk:
+                    raise ConnectionResetError("Client disconnected")
+                raw += chunk
+
+            try:
+                cmd = json.loads(raw.decode().strip())
+            except json.JSONDecodeError:
+                send_json(client_sock, {"status": "error", "message": "bad JSON"})
+                continue
+
+            action = cmd.get("action", "")
+
+            if action == "ping":
+                send_json(client_sock, {"status": "ok", "message": "pong"})
+
+            elif action == "start_recording":
+                if recording:
+                    send_json(client_sock, {"status": "error",
+                        "message": "already recording"})
+                    continue
+
+                grid    = cmd.get("grid", "UNKNOWN").upper()
+                utc_now = datetime.datetime.utcnow()
+
+                # FT-747GX takes ~1 second to respond — this is normal
+                logging.info("Querying frequency (FT-747GX may take ~1s)...")
+                freq_hz = get_frequency()
+
+                freq_str = f"{freq_hz / 1_000_000:.4f}MHz"
+                date_str = utc_now.strftime("%Y%m%d")
+                time_str = utc_now.strftime("%H%M%S")
+                filename = f"{freq_str}_{date_str}_{time_str}_{grid}.wav"
+
+                wav_header = make_wav_header(SAMPLE_RATE, CHANNELS, SAMPLE_WIDTH)
+                meta = {
+                    "status":         "recording",
+                    "filename":       filename,
+                    "freq_hz":        freq_hz,
+                    "freq_mhz":       round(freq_hz / 1_000_000, 4),
+                    "utc":            utc_now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "grid":           grid,
+                    "sample_rate":    SAMPLE_RATE,
+                    "channels":       CHANNELS,
+                    "sample_width":   SAMPLE_WIDTH,
+                    "wav_header_hex": wav_header.hex()
+                }
+                send_json(client_sock, meta)
+
+                stop_event   = threading.Event()
+                audio_thread = threading.Thread(
+                    target=stream_audio,
+                    args=(client_sock, stop_event),
+                    daemon=True
+                )
+                audio_thread.start()
+                recording = True
+                logging.info(f"Recording started: {filename}")
+
+            elif action == "stop_recording":
+                if not recording:
+                    send_json(client_sock, {"status": "error",
+                        "message": "not recording"})
+                    continue
+                stop_event.set()
+                audio_thread.join(timeout=5)
+                recording = False
+                send_json(client_sock, {"status": "stopped"})
+                logging.info("Recording stopped")
+
+            else:
+                send_json(client_sock, {"status": "error",
+                    "message": f"unknown action: {action}"})
+
+    except (ConnectionResetError, BrokenPipeError, OSError) as e:
+        logging.info(f"Client disconnected: {e}")
+    except Exception as e:
+        logging.error(f"Unexpected error: {e}")
+    finally:
+        if stop_event:
+            stop_event.set()
+        client_sock.close()
+
+def main():
+    logging.info("Starting rigctld for FT-747GX...")
+    subprocess.Popen(
+        [
+            'rigctld',
+            '-m', '105',                    # FT-747GX hamlib model
+            '-r', '/dev/ft747cat',           # FTDI CAT cable
+            '-s', '4800',                    # fixed baud rate for FT-747GX
+            '--set-conf=serial_stopbits=2',  # FT-747GX uses 2 stop bits
+            '--set-conf=dtr_state=off',      # never assert DTR
+            '--set-conf=rts_state=off',      # never assert RTS (PTT safety)
+            '--set-conf=ptt_type=None',      # disable all PTT methods
+            '--set-conf=write_delay=50',     # 50ms between bytes (vintage radio)
+        ],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
+    time.sleep(3)  # FT-747GX needs a little longer to initialise CAT
+
+    server_sock = bluetooth.BluetoothSocket(bluetooth.RFCOMM)
+    server_sock.bind(("", bluetooth.PORT_ANY))
+    server_sock.listen(1)
+    bluetooth.advertise_service(
+        server_sock, "FT747Bridge",
+        service_id=bluetooth.SERIAL_PORT_CLASS,
+        service_classes=[bluetooth.SERIAL_PORT_CLASS],
+        profiles=[bluetooth.SERIAL_PORT_PROFILE]
+    )
+    port = server_sock.getsockname()[1]
+    logging.info(f"Listening on RFCOMM port {port}")
+
+    while True:
+        client_sock, addr = server_sock.accept()
+        t = threading.Thread(
+            target=handle_client, args=(client_sock, addr), daemon=True)
+        t.start()
+
+if __name__ == "__main__":
+    main()
+-------------------- END ft747_bridge.py --------------------
+
+
+STEP 8 — Create the systemd service
+--------------------------------------
+  sudo nano /etc/systemd/system/ft747bridge.service
+
+Paste:
+  [Unit]
+  Description=FT-747GX Bluetooth Bridge
+  After=bluetooth.target
+  Wants=bluetooth.target
+
+  [Service]
+  ExecStart=/usr/bin/python3 /home/pi/ft747_bridge.py
+  Restart=on-failure
+  RestartSec=5
+  User=pi
+
+  [Install]
+  WantedBy=multi-user.target
+
+Enable and start:
+  sudo systemctl daemon-reload
+  sudo systemctl enable ft747bridge
+  sudo systemctl start ft747bridge
+  sudo systemctl status ft747bridge
+
+
+STEP 9 — Pair the Android phone
+----------------------------------
+  sudo bluetoothctl
+  > power on
+  > discoverable on
+  > pairable on
+  > agent on
+  > default-agent
+
+On your Android phone:
+  Settings → Bluetooth → Scan → Select "ft747bridge" → Accept pairing
+
+Back on the Pi:
+  > trust XX:XX:XX:XX:XX:XX   (your phone's MAC address)
+  > quit
+
+Make permanently discoverable:
+  sudo nano /etc/bluetooth/main.conf
+
+Add/edit:
+  [General]
+  DiscoverableTimeout = 0
+
+  [Policy]
+  AutoEnable=true
+
+
+================================================================================
+PART 3: ANDROID APP (FLUTTER) — NO CHANGES NEEDED
+================================================================================
+
+The Flutter app from the FT-891 implementation works with the FT-747GX without
+any modifications. The app communicates with the Pi bridge over Bluetooth using
+the same JSON protocol regardless of which radio is connected.
+
+The only visible difference to the user is a ~1-2 second delay after pressing
+Record before the frequency appears and audio streaming begins. This is normal —
+it reflects the FT-747GX's slow CAT response at 4800 baud.
+
+Refer to the FT-891 implementation guide for full Flutter build instructions.
+
+
+================================================================================
+KEY PARAMETER DIFFERENCES vs FT-891
+================================================================================
+
+  Parameter            FT-891          FT-747GX
+  ─────────────────────────────────────────────────────
+  hamlib model         136             105
+  CAT device           /dev/ft891cat   /dev/ft747cat
+  CAT baud rate        38400           4800
+  Stop bits            1               2
+  DTR state            default         off
+  RTS state            off             off
+  PTT type             None            None
+  Write delay          default         50ms
+  rigctld timeout      3 seconds       5 seconds
+  CAT response time    <100ms          ~1 second
+  Audio connector      MiniDin6 ACC    RCA + GX16-8 MIC
+  Radio menu settings  Several         None
+
+
+================================================================================
+PROTOCOL REFERENCE (identical to FT-891 implementation)
+================================================================================
+
+  Phone → Pi:   {"action":"start_recording","grid":"EM72"}\n
+  Pi → Phone:   {"status":"recording","filename":"14.2250MHz_20260313_183045_EM72.wav",
+                  "freq_hz":14225000,"freq_mhz":14.225,...,"wav_header_hex":"..."}\n
+  Pi → Phone:   [4-byte LE length][raw PCM bytes] × N
+  Pi → Phone:   [0x00000000] ← end of stream sentinel
+  Phone → Pi:   {"action":"stop_recording"}\n
+  Pi → Phone:   {"status":"stopped"}\n
+
+Audio: 48kHz, 16-bit, mono PCM WAV.
+
+
+================================================================================
+POWERING THE PI FROM THE RADIO'S 12V SUPPLY
+================================================================================
+
+The FT-747GX does not have an accessory power output connector. Tap 12V from
+the same power source that feeds the radio (power supply or battery):
+
+  12V supply ─── [buck converter 12V→5V, 1.5A min] ─── Pi Zero 2W micro USB PWR
+
+Search: "DC-DC 12V to 5V USB step down converter" (~$5 on Amazon)
+Minimum rating: 1.5A to handle Pi + USB hub + Digirig + CAT cable
+
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+rigctl times out immediately (no CAT flash on radio display):
+  - Check cable is in the correct rear DIN port
+  - Verify udev rule: ls -la /dev/ft747cat
+  - Confirm FTDI cable, not CP210x: udevadm info -a -n /dev/ft747cat | grep idVendor
+
+rigctl times out but CAT flashes briefly on radio display:
+  - The radio received the command but SO signal is not reaching the Pi
+  - This is the classic open-emitter problem — install the 5.6K resistor
+    between SO (DIN pin 3) and GND (DIN pin 1)
+
+rigctl connects but returns wrong frequency or garbage:
+  - Check baud rate is 4800 and stop bits is 2
+  - Try increasing write_delay: --set-conf=write_delay=100
+
+No audio / silent recording:
+  - Check RCA cable is in AF OUT jack on the FT-747GX rear panel
+  - The AF GAIN knob on the radio affects the ACC output level
+  - Try a test recording while audio is clearly audible on the speaker:
+    arecord -D hw:1,0 -d 5 test.wav
+
+Audio is very quiet:
+  - Increase the AF GAIN control on the radio
+  - The FT-747GX AF OUT level is not adjustable via menu — only via the
+    front panel AF GAIN knob
+
+Digirig Mobile not appearing as audio device:
+  - Run arecord -l — look for USB Audio Device
+  - Check USB hub is powered and both devices are enumerated
+  - Try: dmesg | grep -i audio  after plugging in
+
+Phone can't find Pi in Bluetooth:
+  - Confirm pairing in Android Bluetooth settings first
+  - Check bluetoothctl: devices — phone should show as trusted
+  - Restart: sudo systemctl restart ft747bridge
+
+================================================================================
+END OF GUIDE
+================================================================================
