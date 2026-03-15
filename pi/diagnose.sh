@@ -43,11 +43,11 @@ echo ""
 
 # ── 2. CAT port alias ─────────────────────────────────────────────────────────
 echo -e "${HB_BOLD}CAT Port Alias${HB_NC}"
-if [ -e "/dev/hamradiocat" ]; then
-    HB_TARGET=$(readlink -f /dev/hamradiocat)
-    hb_pass "/dev/hamradiocat → $HB_TARGET"
+if [ -e "/dev/hambridge" ]; then
+    HB_TARGET=$(readlink -f /dev/hambridge)
+    hb_pass "/dev/hambridge → $HB_TARGET"
 else
-    hb_fail "/dev/hamradiocat not found"
+    hb_fail "/dev/hambridge not found"
     hb_info "Check: /etc/udev/rules.d/99-hamradio.rules exists"
     hb_info "Fix:   sudo udevadm control --reload-rules && sudo udevadm trigger"
 fi
@@ -133,7 +133,7 @@ echo ""
 
 # ── 8. Live CAT test ──────────────────────────────────────────────────────────
 echo -e "${HB_BOLD}Live CAT Test${HB_NC}"
-if [ -e "/dev/hamradiocat" ] && pgrep -x rigctld > /dev/null; then
+if [ -e "/dev/hambridge" ] && pgrep -x rigctld > /dev/null; then
     # Detect model and baud from running rigctld process
     if ps aux | grep rigctld | grep -qv grep | grep -q "\-s 4800"; then
         HB_TEST_BAUD=4800; HB_TEST_MODEL=105
@@ -141,7 +141,7 @@ if [ -e "/dev/hamradiocat" ] && pgrep -x rigctld > /dev/null; then
         HB_TEST_BAUD=38400; HB_TEST_MODEL=136
     fi
     echo -n "  Querying radio frequency ... "
-    HB_FREQ=$(timeout 7 rigctl -m "$HB_TEST_MODEL" -r /dev/hamradiocat -s "$HB_TEST_BAUD" f 2>/dev/null || true)
+    HB_FREQ=$(timeout 7 rigctl -m "$HB_TEST_MODEL" -r /dev/hambridge -s "$HB_TEST_BAUD" f 2>/dev/null || true)
     if [ -n "$HB_FREQ" ]; then
         HB_FREQ_MHZ=$(echo "scale=4; $HB_FREQ / 1000000" | bc 2>/dev/null || echo "$HB_FREQ Hz")
         echo -e "${HB_GREEN}OK${HB_NC}"

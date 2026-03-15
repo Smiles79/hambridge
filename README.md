@@ -35,7 +35,7 @@ hambridge/
 └── lib/
     ├── config.sh           ← shared HB_ variables and hb_ helpers
     ├── packages.sh         ← apt package installation
-    ├── udev.sh             ← stable CAT port alias (/dev/hamradiocat)
+    ├── udev.sh             ← stable CAT port alias (/dev/hambridge)
     ├── daemon.sh           ← places hambridge.py and settings file
     ├── systemd.sh          ← hambridge.service creation and management
     └── bluetooth.sh        ← BlueZ permanent discoverability config

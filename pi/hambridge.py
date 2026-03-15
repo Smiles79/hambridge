@@ -38,8 +38,8 @@ CHANNELS     = 1
 SAMPLE_WIDTH = 2
 CHUNK_SIZE   = 4096
 
-# CAT device — always /dev/hamradiocat (set by udev rule at install time)
-CAT_DEVICE = "/dev/hamradiocat"
+# CAT device — always /dev/hambridge (set by udev rule at install time)
+CAT_DEVICE = "/dev/hambridge"
 
 # Current radio config — updated when app sends set_radio
 _radio_config = {

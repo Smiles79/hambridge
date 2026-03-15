@@ -18,7 +18,8 @@ HB_BT_CONF="/etc/bluetooth/main.conf"
 
 # ── Service ───────────────────────────────────────────────────────────────────
 HB_SERVICE_NAME="hambridge"
-HB_CAT_DEVICE_ALIAS="hamradiocat"
+HB_CAT_DEVICE_ALIAS="hambridge"
+HB_BT_NAME="HamBridge"
 
 # ── Colours ───────────────────────────────────────────────────────────────────
 HB_RED='\033[0;31m'
