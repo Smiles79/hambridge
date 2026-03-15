@@ -135,18 +135,11 @@ class _HomeScreenState extends State<HomeScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'HAM',
+                'HAMBRIDGE',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontFamily: 'monospace',
                       fontSize: 22,
                       color: const Color(0xFF00E5A0),
-                    ),
-              ),
-              Text(
-                'BRIDGE',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      letterSpacing: 4,
-                      fontSize: 10,
                     ),
               ),
             ],

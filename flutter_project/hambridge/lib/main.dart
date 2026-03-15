@@ -13,24 +13,17 @@ void main() async {
   // Initialise foreground task service (lock screen persistence)
   FlutterForegroundTask.init(
     androidNotificationOptions: AndroidNotificationOptions(
-      channelId:   'hambridge_recording',
+      channelId: 'hambridge_recording',
       channelName: 'HamBridge Recording',
       channelDescription: 'Keeps HamBridge active during recording',
-      channelImportance: NotificationChannelImportance.LOW,
-      priority: NotificationPriority.LOW,
-      iconData: const NotificationIconData(
-        resType: ResourceType.mipmap,
-        resPrefix: ResourcePrefix.ic,
-        name: 'launcher',
-      ),
+      onlyAlertOnce: true,
     ),
     iosNotificationOptions: const IOSNotificationOptions(
-      showNotification: true,
+      showNotification: false,
       playSound: false,
     ),
-    foregroundTaskOptions: const ForegroundTaskOptions(
-      interval: 5000,
-      isOnceEvent: false,
+    foregroundTaskOptions: ForegroundTaskOptions(
+      eventAction: ForegroundTaskEventAction.nothing(),
       autoRunOnBoot: false,
       allowWakeLock: true,
       allowWifiLock: true,
