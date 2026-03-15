@@ -1,8 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide ConnectionState;
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../services/bridge_service.dart'
-    hide ConnectionState;
+import '../services/bridge_service.dart';
 import '../services/bridge_service.dart' as svc;
 import '../services/gps_service.dart';
 import '../widgets/frequency_display.dart';
@@ -233,8 +232,8 @@ class _HomeScreenState extends State<HomeScreen>
         Expanded(child: _infoTile(
           icon: Icons.radio_rounded,
           label: 'RADIO',
-          value: service.selectedRadio.name
-              .replaceAll('Yaesu ', ''),
+          value: service.selectedRadio?.name
+              .replaceAll('Yaesu ', '') ?? '-',
           accent: false,
         )),
       ],
