@@ -1,0 +1,77 @@
+<svg width="1024" height="1024" viewBox="0 0 680 680" xmlns="http://www.w3.org/2000/svg">
+<style>
+  .bg { fill: #0D0F14; }
+  .gridline { stroke: #1E2535; stroke-width: 0.5; }
+  .body-fill { fill: #1E2535; }
+  .body-stroke { fill: none; stroke: #00E5A0; stroke-width: 2; }
+  .dim { fill: #252D40; }
+  .knob { fill: #161B24; stroke: #00E5A0; stroke-width: 1.5; }
+  .screen { fill: #0D1A14; stroke: #00E5A0; stroke-width: 1.5; }
+  .freq { fill: #00E5A0; font-family: monospace; font-size: 28px; font-weight: 700; letter-spacing: 2px; }
+  .mlabel { fill: #5A6480; font-family: monospace; font-size: 14px; }
+  .accent { fill: #00E5A0; }
+  .antenna-line { stroke: #00E5A0; stroke-width: 4; stroke-linecap: round; }
+  .ham { fill: #00E5A0; font-family: monospace; font-size: 52px; font-weight: 700; letter-spacing: 4px; }
+  .bridge { fill: #5A6480; font-family: monospace; font-size: 52px; font-weight: 700; letter-spacing: 4px; }
+</style>
+
+<rect x="40" y="40" width="600" height="600" rx="120" class="bg"/>
+
+<line x1="40" y1="220" x2="640" y2="220" class="gridline"/>
+<line x1="40" y1="340" x2="640" y2="340" class="gridline"/>
+<line x1="40" y1="460" x2="640" y2="460" class="gridline"/>
+<line x1="220" y1="40" x2="220" y2="640" class="gridline"/>
+<line x1="340" y1="40" x2="340" y2="640" class="gridline"/>
+<line x1="460" y1="40" x2="460" y2="640" class="gridline"/>
+
+<!-- App name -->
+<text x="340" y="230" text-anchor="middle">
+  <tspan class="ham">HAM</tspan><tspan class="bridge">BRIDGE</tspan>
+</text>
+
+<!-- Underline under full word -->
+<rect x="201" y="240" width="279" height="2" rx="1" fill="#00E5A0" opacity="0.35"/>
+
+<!-- Radio body -->
+<rect x="180" y="340" width="320" height="210" rx="16" class="body-fill"/>
+<rect x="180" y="340" width="320" height="210" rx="16" class="body-stroke"/>
+
+<!-- Screen -->
+<rect x="200" y="358" width="200" height="80" rx="8" class="screen"/>
+<text x="300" y="402" text-anchor="middle" class="freq">14.225</text>
+<text x="300" y="424" text-anchor="middle" class="mlabel">MHz</text>
+
+<!-- Record button -->
+<circle cx="460" cy="398" r="32" class="dim"/>
+<circle cx="460" cy="398" r="32" fill="none" stroke="#00E5A0" stroke-width="1.5"/>
+<circle cx="460" cy="398" r="12" class="accent"/>
+
+<!-- Knobs -->
+<circle cx="220" cy="482" r="18" class="knob"/>
+<circle cx="220" cy="482" r="5" class="accent"/>
+<circle cx="280" cy="482" r="18" class="knob"/>
+<circle cx="280" cy="482" r="5" class="dim"/>
+<circle cx="340" cy="482" r="18" class="knob"/>
+<circle cx="340" cy="482" r="5" class="dim"/>
+
+<!-- Sliders -->
+<rect x="398" y="470" width="84" height="6" rx="3" class="dim"/>
+<rect x="398" y="470" width="46" height="6" rx="3" class="accent"/>
+<rect x="398" y="488" width="84" height="6" rx="3" class="dim"/>
+<rect x="398" y="488" width="30" height="6" rx="3" class="accent"/>
+
+<!-- Status dots -->
+<circle cx="400" cy="512" r="5" class="accent"/>
+<circle cx="420" cy="512" r="5" class="dim"/>
+<circle cx="440" cy="512" r="5" class="dim"/>
+<circle cx="460" cy="512" r="5" class="dim"/>
+<circle cx="480" cy="512" r="5" class="dim"/>
+
+<!-- Bottom accent bar -->
+<rect x="200" y="534" width="300" height="4" rx="2" fill="#00E5A0" opacity="0.4"/>
+
+<!-- Vertical antenna -->
+<line x1="300" y1="340" x2="300" y2="258" class="antenna-line"/>
+<circle cx="300" cy="256" r="6" class="accent"/>
+<rect x="288" y="338" width="24" height="8" rx="3" class="accent"/>
+</svg>
