@@ -173,7 +173,7 @@ class BridgeService extends ChangeNotifier {
       errorMessage    = null;
       notifyListeners();
 
-      _connection         = await _ble.connect(device);
+      _connection         = await _ble.connect(device.address);
       connectedDeviceName = device.name;
       connectionState     = ConnectionState.connected;
       statusMessage       = 'Connected to ${device.name}';
