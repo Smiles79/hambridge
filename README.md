@@ -16,7 +16,7 @@ The radio's microphone, PTT, and front panel are completely unaffected.
 ## Installation
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Smiles79/hambridge/main/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/Smiles79/hambridge/main/pi/install.sh | sudo bash
 ```
 
 Or with a local copy:
