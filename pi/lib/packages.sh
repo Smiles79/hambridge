@@ -10,7 +10,7 @@ hb_install_packages() {
 
     apt-get update -qq
 
-    apt-get install -y -qq \
+    sudo debconf-apt-progress -- sudo apt-get install install -y -qq \
         python3-pip \
         python3-dev \
         libhamlib-utils \
