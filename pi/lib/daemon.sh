@@ -15,7 +15,7 @@ hb_install_daemon() {
 
     # Copy the main daemon script from the repo
     # HB_REPO_DIR is set by install.sh to the downloaded repo directory
-    cp "$HB_REPO_DIR/pi/hambridge.py" "$HB_DAEMON_SCRIPT"
+    cp "$HB_REPO_DIR/hambridge.py" "$HB_DAEMON_SCRIPT"
 
     chown -R "$HB_INSTALL_USER:$HB_INSTALL_USER" "$HB_INSTALL_DIR"
     chmod +x "$HB_DAEMON_SCRIPT"
