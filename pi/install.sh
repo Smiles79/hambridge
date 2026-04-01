@@ -58,7 +58,7 @@ if [ -n "$HB_SCRIPT_DIR" ] && [ -f "$HB_SCRIPT_DIR/lib/config.sh" ]; then
     HB_REPO_DIR="$HB_SCRIPT_DIR"
 else
     # No local lib/ found — download the full repo from GitHub
-    HB_REPO_DIR="/tmp/hambridge-install"
+    HB_REPO_DIR="/tmp/hambridge-install/pi"
     rm -rf "$HB_REPO_DIR"
     mkdir -p "$HB_REPO_DIR"
     echo "Downloading HamBridge..."
