@@ -30,7 +30,7 @@ else
     echo "==> Using REMOTE repository"
 
     BRANCH="${1:-main}"
-    HB_REPO_DIR="/tmp/hambridge-install"
+    HB_REPO_DIR="/tmp/hambridge-install/pi"
 
     rm -rf "$HB_REPO_DIR"
     mkdir -p "$HB_REPO_DIR"
