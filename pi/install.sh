@@ -23,6 +23,24 @@
 
 set -e  # exit immediately on any error
 
+# ── Error trap ────────────────────────────────────────────────────────────────
+# Catches any unexpected failure and prints the line number so it's easy
+# to identify what went wrong.
+hb_on_error() {
+    local line="$1"
+    echo ""
+    echo -e "\033[0;31m[ERROR]\033[0m Installation failed at line $line."
+    echo -e "\033[0;31m[ERROR]\033[0m Check the output above for details."
+    echo ""
+    echo "  To see more detail, re-run with:"
+    echo "    sudo bash -x install.sh"
+    echo ""
+}
+trap 'hb_on_error $LINENO' ERR
+
+# Helper to run a command that is allowed to fail without killing the script
+hb_try() { "$@" || true; }
+
 # ── Locate repo dir ───────────────────────────────────────────────────────────
 # Determines whether we are running from a local checkout or being piped
 # from curl. In both cases we end up with a full repo in HB_REPO_DIR before
@@ -46,7 +64,7 @@ else
     echo "Downloading HamBridge..."
     curl -sSL https://github.com/Smiles79/hambridge/archive/main.tar.gz \
         -o /tmp/hambridge.tar.gz
-    tar -xz -C "$HB_REPO_DIR" --strip-components=2 -f /tmp/hambridge.tar.gz
+    tar -xz -C "$HB_REPO_DIR" --strip-components=1 -f /tmp/hambridge.tar.gz
     rm -f /tmp/hambridge.tar.gz
 fi
 export HB_REPO_DIR
@@ -72,16 +90,15 @@ HB_INSTALL_HOME=$(eval echo ~"$HB_INSTALL_USER")
 source "$HB_REPO_DIR/lib/config.sh"
 
 # ── Banner ────────────────────────────────────────────────────────────────────
-echo -e "${HB_BOLD}"
-echo "  ██╗  ██╗ █████╗ ███╗   ███╗"
-echo "  ██║  ██║██╔══██╗████╗ ████║"
-echo "  ███████║███████║██╔████╔██║"
-echo "  ██╔══██║██╔══██║██║╚██╔╝██║"
-echo "  ██║  ██║██║  ██║██║ ╚═╝ ██║"
-echo "  ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝"
+echo -e "${HB_BOLD}${HB_CYAN}"
+echo "  ██╗  ██╗ █████╗ ███╗   ███╗██████╗ ██████╗ ██╗██████╗  ██████╗ ███████╗"
+echo "  ██║  ██║██╔══██╗████╗ ████║██╔══██╗██╔══██╗██║██╔══██╗██╔════╝ ██╔════╝"
+echo "  ███████║███████║██╔████╔██║██████╔╝██████╔╝██║██║  ██║██║  ███╗█████╗  "
+echo "  ██╔══██║██╔══██║██║╚██╔╝██║██╔══██╗██╔══██╗██║██║  ██║██║   ██║██╔══╝  "
+echo "  ██║  ██║██║  ██║██║ ╚═╝ ██║██████╔╝██║  ██║██║██████╔╝╚██████╔╝███████╗"
+echo "  ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝╚═════╝ ╚═╝  ╚═╝╚═╝╚═════╝  ╚═════╝ ╚══════╝"
 echo -e "${HB_NC}"
-echo -e "  ${HB_CYAN}HamBridge — Ham Radio Recorder Bridge${HB_NC}"
-echo -e "  Installer v1.0"
+echo -e "  ${HB_CYAN}Ham Radio Recorder Bridge — Installer v1.0${HB_NC}"
 echo ""
 hb_info "Installing for user: $HB_INSTALL_USER"
 hb_info "Install directory:   $HB_INSTALL_DIR"
@@ -134,7 +151,7 @@ chown "$HB_INSTALL_USER:$HB_INSTALL_USER" \
     "$HB_DIAGNOSE_SCRIPT" "$HB_UNINSTALL_SCRIPT"
 hb_success "Tools installed"
 
-hb_start_service
+hb_try hb_start_service
 
 # =============================================================================
 #  Summary
@@ -161,12 +178,4 @@ echo -e "  2. Reboot:           ${HB_CYAN}sudo reboot${HB_NC}"
 echo -e "  3. Pair phone to '${HB_BT_NAME}' in Android Bluetooth settings"
 echo -e "  4. Open HamBridge app → Settings → select your radio"
 echo -e "  5. Run diagnostics to confirm everything is working"
-
 echo ""
-read -rp "Reboot now? [y/N]: " HB_REBOOT
-if [[ "$HB_REBOOT" =~ ^[Yy]$ ]]; then
-    echo "Rebooting..."
-    reboot
-else
-    echo "Reboot skipped. Please reboot later to apply all changes."
-fi

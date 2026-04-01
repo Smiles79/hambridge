@@ -14,7 +14,7 @@ hb_install_systemd() {
 
     cat > "$HB_SERVICE_FILE" << EOF
 [Unit]
-Description=HamBridge — Ham Radio Recorder Bridge ($HB_RADIO_MODEL)
+Description=HamBridge — Ham Radio Recorder Bridge
 After=bluetooth.target
 Wants=bluetooth.target
 
@@ -39,8 +39,9 @@ EOF
 hb_start_service() {
     hb_step "Starting service"
 
-    systemctl start "$HB_SERVICE_NAME" \
-        || hb_warn "Service failed to start — run diagnose.sh to investigate"
+    # Use || true so a failed start doesn't trigger set -e and kill the script.
+    # Failure here is expected when hardware isn't connected yet.
+    systemctl start "$HB_SERVICE_NAME" 2>/dev/null || true
 
     sleep 2
 
