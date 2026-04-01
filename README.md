@@ -10,58 +10,20 @@ The radio's microphone, PTT, and front panel are completely unaffected.
 ## Installation
 
 ```bash
-BRANCH="main"; curl -sSL "https://github.com/Smiles79/hambridge/archive/${BRANCH}.tar.gz" | tar -xz -C /tmp && bash $(find /tmp -maxdepth 1 -type d -name "hambridge-*" | sort | tail -n1)/install.sh
+sudo git clone https://github.com/Smiles79/hambridge.git
 ```
 
-## Repository Structure
+'''bash
+cd hambridge
+'''
 
-```
-hambridge/
-├── install.sh              ← entry point — run this
-├── hambridge.py            ← bridge daemon (Python)
-├── diagnose.sh             ← run if anything isn't working
-├── uninstall.sh            ← clean removal
-└── lib/
-    ├── config.sh           ← shared HB_ variables and hb_ helpers
-    ├── packages.sh         ← apt package installation
-    ├── udev.sh             ← stable CAT port alias (/dev/hambridge)
-    ├── daemon.sh           ← places hambridge.py and settings file
-    ├── systemd.sh          ← hambridge.service creation and management
-    └── bluetooth.sh        ← BlueZ permanent discoverability config
-```
+'''bash
+cd pi
+'''
 
-## After Installation
-
-Files installed to `~/hambridge/`:
-- `hambridge.py` — the daemon (do not edit directly)
-- `hambridge_settings.py` — **edit this** to change radio parameters
-- `diagnose.sh` — run any time something isn't working
-- `uninstall.sh` — clean removal
-
-### Changing radio settings
-
-```bash
-nano ~/hambridge/hambridge_settings.py
-sudo systemctl restart hambridge
-```
-
-### Useful commands
-
-```bash
-sudo systemctl status hambridge     # service status
-sudo journalctl -u hambridge -f     # live logs
-bash ~/hambridge/diagnose.sh        # full system check
-```
-
-## Android App
-
-See the `android/` directory. Built with Flutter.
-
-```bash
-cd android
-flutter pub get
-flutter run
-```
+'''bash
+sudo bash install.sh
+'''
 
 ## Protocol
 
