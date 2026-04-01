@@ -34,7 +34,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # 1️⃣ Detect branch
 # Use first argument if provided, otherwise default to "main"
-BRANCH="${1:-main}"
+if [[ -n "$1" ]]; then
+    BRANCH="$1"
+elif [[ "$0" =~ raw\.githubusercontent\.com/[^/]+/[^/]+/([^/]+)/ ]]; then
+    BRANCH="${BASH_REMATCH[1]}"
+else
+    BRANCH="main"
+fi
 
 # 2️⃣ Check if running inside a local Git repo
 if git -C "$SCRIPT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
