@@ -161,4 +161,12 @@ echo -e "  2. Reboot:           ${HB_CYAN}sudo reboot${HB_NC}"
 echo -e "  3. Pair phone to '${HB_BT_NAME}' in Android Bluetooth settings"
 echo -e "  4. Open HamBridge app → Settings → select your radio"
 echo -e "  5. Run diagnostics to confirm everything is working"
+
 echo ""
+read -rp "Reboot now? [y/N]: " HB_REBOOT
+if [[ "$HB_REBOOT" =~ ^[Yy]$ ]]; then
+    echo "Rebooting..."
+    reboot
+else
+    echo "Reboot skipped. Please reboot later to apply all changes."
+fi
