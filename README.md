@@ -16,6 +16,14 @@ The radio's microphone, PTT, and front panel are completely unaffected.
 ## Installation
 
 ```bash
+sudo apt update
+```
+
+```bash
+sudo apt upgrade -y
+```
+
+```bash
 curl -sSL https://raw.githubusercontent.com/Smiles79/hambridge/main/pi/install.sh | sudo bash
 ```
 
