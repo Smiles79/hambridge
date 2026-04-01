@@ -8,10 +8,10 @@
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 HB_INSTALL_DIR="$HB_INSTALL_HOME/hambridge"
-HB_LIB_DIR="$HB_INSTALL_DIR/lib"
-HB_DAEMON_SCRIPT="$HB_INSTALL_DIR/hambridge.py"
-HB_DIAGNOSE_SCRIPT="$HB_INSTALL_DIR/diagnose.sh"
-HB_UNINSTALL_SCRIPT="$HB_INSTALL_DIR/uninstall.sh"
+HB_LIB_DIR="$HB_INSTALL_DIR/pi/lib"
+HB_DAEMON_SCRIPT="$HB_INSTALL_DIR/pi/hambridge.py"
+HB_DIAGNOSE_SCRIPT="$HB_INSTALL_DIR/pi/diagnose.sh"
+HB_UNINSTALL_SCRIPT="$HB_INSTALL_DIR/pi/uninstall.sh"
 HB_SERVICE_FILE="/etc/systemd/system/hambridge.service"
 HB_UDEV_RULE_FILE="/etc/udev/rules.d/99-hamradio.rules"
 HB_BT_CONF="/etc/bluetooth/main.conf"
