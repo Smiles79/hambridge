@@ -10,7 +10,7 @@ The radio's microphone, PTT, and front panel are completely unaffected.
 ## Installation
 
 ```bash
-curl -sSL https://github.com/Smiles79/hambridge/archive/main.tar.gz | tar -xz -C /tmp && bash /tmp/hambridge-main/install.sh
+BRANCH="main"; curl -sSL "https://github.com/Smiles79/hambridge/archive/${BRANCH}.tar.gz" | tar -xz -C /tmp && bash $(find /tmp -maxdepth 1 -type d -name "hambridge-*" | sort | tail -n1)/install.sh
 ```
 
 ## Repository Structure
