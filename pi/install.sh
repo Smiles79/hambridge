@@ -28,18 +28,17 @@ if git -C "$SCRIPT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     HB_REPO_DIR="$SCRIPT_DIR"
 else
     echo "==> Using REMOTE repository"
-
-    BRANCH="${1:-main}"
 #new
-if [[ "$0" =~ ^https?:// ]]; then
+    if [[ "$0" =~ ^https?:// ]]; then
     # Extract branch from URL: raw.githubusercontent.com/user/repo/branch/install.sh
     # Bash regex capture group
-    if [[ "$0" =~ raw\.githubusercontent\.com/[^/]+/[^/]+/([^/]+)/ ]]; then
+        if [[ "$0" =~ raw\.githubusercontent\.com/[^/]+/[^/]+/([^/]+)/ ]]; then
         BRANCH="${BASH_REMATCH[1]}"
         echo "Detected remote branch: $BRANCH"
     fi
 fi
 #new
+    #BRANCH="${1:-main}"
 
     HB_REPO_DIR="/tmp/hambridge-install/pi"
 
