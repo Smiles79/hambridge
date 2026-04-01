@@ -45,6 +45,10 @@ hb_start_service() {
 
     sleep 2
 
+    bluetoothctl power on
+    bluetoothctl discoverable on
+    bluetoothctl pairable on
+
     local HB_STATUS
     HB_STATUS=$(systemctl is-active "$HB_SERVICE_NAME" 2>/dev/null)
 
