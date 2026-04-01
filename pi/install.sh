@@ -65,13 +65,34 @@ HB_INSTALL_HOME=$(eval echo ~"$HB_INSTALL_USER")
 source "$HB_REPO_DIR/pi/lib/config.sh"
 
 # ── Banner ────────────────────────────────────────────────────────────────────
-echo "Installing HamBridge..."
+echo -e "${HB_BOLD}${HB_CYAN}"
+echo "  ██╗  ██╗ █████╗ ███╗   ███╗██████╗ ██████╗ ██╗██████╗  ██████╗ ███████╗"
+echo "  ██║  ██║██╔══██╗████╗ ████║██╔══██╗██╔══██╗██║██╔══██╗██╔════╝ ██╔════╝"
+echo "  ███████║███████║██╔████╔██║██████╔╝██████╔╝██║██║  ██║██║  ███╗█████╗  "
+echo "  ██╔══██║██╔══██║██║╚██╔╝██║██╔══██╗██╔══██╗██║██║  ██║██║   ██║██╔══╝  "
+echo "  ██║  ██║██║  ██║██║ ╚═╝ ██║██████╔╝██║  ██║██║██████╔╝╚██████╔╝███████╗"
+echo "  ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝╚═════╝ ╚═╝  ╚═╝╚═╝╚═════╝  ╚═════╝ ╚══════╝"
+echo -e "${HB_NC}"
+echo -e "  ${HB_CYAN}Ham Radio Recorder Bridge — Installer v1.0${HB_NC}"
+echo ""
+hb_info "Installing for user: $HB_INSTALL_USER"
+hb_info "Install directory:   $HB_INSTALL_DIR"
 
 # =============================================================================
 #  Confirm before making any changes
 # =============================================================================
-read -rp "Proceed? [y/N]: " HB_CONFIRM
-[[ "$HB_CONFIRM" =~ ^[Yy]$ ]] || { echo "Aborted"; exit 0; }
+hb_step "Configuration"
+echo ""
+echo -e "  ${HB_BOLD}Ready to install with these settings:${HB_NC}"
+echo ""
+echo "    Bluetooth name:  HamBridge"
+echo "    CAT device:      /dev/hambridge"
+echo "    Install user:    $HB_INSTALL_USER"
+echo "    Install dir:     $HB_INSTALL_DIR"
+echo "    Interfaces:      DR-891 and Digirig Mobile (both supported)"
+echo ""
+read -rp "  Proceed? [y/N]: " HB_CONFIRM
+[[ "$HB_CONFIRM" =~ ^[Yy]$ ]] || { hb_info "Aborted — no changes made."; exit 0; }
 
 # =============================================================================
 #  Run installation steps
