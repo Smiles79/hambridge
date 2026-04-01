@@ -64,7 +64,7 @@ else
     echo "Downloading HamBridge..."
     curl -sSL https://github.com/Smiles79/hambridge/archive/main.tar.gz \
         -o /tmp/hambridge.tar.gz
-    tar -xz -C "$HB_REPO_DIR" --strip-components=1 -f /tmp/hambridge.tar.gz
+    tar -xz -C "$HB_REPO_DIR" --strip-components=2 -f /tmp/hambridge.tar.gz
     rm -f /tmp/hambridge.tar.gz
 fi
 export HB_REPO_DIR
