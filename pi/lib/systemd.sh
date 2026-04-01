@@ -43,6 +43,10 @@ hb_start_service() {
         || hb_warn "Service failed to start — run diagnose.sh to investigate"
 
     sleep 2
+    rfkill unblock bluetooth
+    bluetoothctl power on
+    bluetoothctl discoverable on
+    bluetoothctl pairable on
 
     local HB_STATUS
     HB_STATUS=$(systemctl is-active "$HB_SERVICE_NAME" 2>/dev/null)
