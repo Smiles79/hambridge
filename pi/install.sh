@@ -55,7 +55,7 @@ HB_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || e
 
 if [ -n "$HB_SCRIPT_DIR" ] && [ -f "$HB_SCRIPT_DIR/lib/config.sh" ]; then
     # Running from a local copy that has the full repo structure
-    HB_REPO_DIR="$HB_SCRIPT_DIR"
+    HB_REPO_DIR="$HB_SCRIPT_DIR/pi"
 else
     # No local lib/ found — download the full repo from GitHub
     HB_REPO_DIR="/tmp/hambridge-install/pi"
