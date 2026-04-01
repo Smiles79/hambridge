@@ -13,7 +13,7 @@ hb_install_packages() {
     apt-get install -y -qq \
         python3-pip \
         python3-dev \
-        hamlib-utils \
+        libhamlib-utils \
         alsa-utils \
         bluetooth \
         bluez \
