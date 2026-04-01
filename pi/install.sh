@@ -1,11 +1,11 @@
 #!/bin/bash
 # =============================================================================
-#  install.sh
-#  HamBridge installer — entry point.
+#  HamBridge installer — tarball-based, fully local
 # =============================================================================
 
 set -e
 
+# ── Helper functions ─────────────────────────────────────────────────────────
 hb_on_error() {
     local line="$1"
     echo ""
@@ -20,73 +20,36 @@ trap 'hb_on_error $LINENO' ERR
 
 hb_try() { "$@" || true; }
 
-# ── Locate repo dir (IMPROVED) ───────────────────────────────────────────────
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo "")"
+hb_info() { echo -e "\033[1;34m[INFO]\033[0m $*"; }
+hb_step() { echo -e "\n\033[1;32m==> $*\033[0m"; }
 
-#!/bin/bash
-
-# =============================================================================
-# HamBridge installer — improved branch handling
-# =============================================================================
-
-# Directory where the script resides
+# ── Locate repo directory ────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# 1️⃣ Detect branch
-# Use first argument if provided, otherwise default to "main"
-if [[ -n "$1" ]]; then
-    BRANCH="$1"
-elif [[ "$0" =~ raw\.githubusercontent\.com/[^/]+/[^/]+/([^/]+)/ ]]; then
-    BRANCH="${BASH_REMATCH[1]}"
-else
-    BRANCH="main"
-fi
-
-# 2️⃣ Check if running inside a local Git repo
-if git -C "$SCRIPT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    echo "==> Using LOCAL repository"
-    HB_REPO_DIR="$SCRIPT_DIR"
-else
-    echo "==> Using REMOTE repository"
-
-    # Temporary directory to extract remote repo
-    HB_REPO_DIR="/tmp/hambridge-install/pi"
-
-    rm -rf "$HB_REPO_DIR"
-    mkdir -p "$HB_REPO_DIR"
-
-    echo "Downloading HamBridge (branch: $BRANCH)..."
-    curl -sSL "https://github.com/Smiles79/hambridge/archive/${BRANCH}.tar.gz" \
-        -o /tmp/hambridge.tar.gz
-
-    tar -xz -C "$HB_REPO_DIR" --strip-components=1 -f /tmp/hambridge.tar.gz
-    rm -f /tmp/hambridge.tar.gz
-fi
-
-echo "HamBridge ready at: $HB_REPO_DIR"
-
+HB_REPO_DIR="$SCRIPT_DIR"
 export HB_REPO_DIR
 
-# ── Root check ────────────────────────────────────────────────────────────────
+# ── Root check ───────────────────────────────────────────────────────────────
 if [ "$EUID" -ne 0 ]; then
     echo "ERROR: Please run as root: sudo bash install.sh"
     exit 1
 fi
 
 # ── Detect install user ───────────────────────────────────────────────────────
-if [ -n "$SUDO_USER" ]; then
-    export HB_INSTALL_USER="$SUDO_USER"
-else
-    export HB_INSTALL_USER="pi"
-fi
+HB_INSTALL_USER="${SUDO_USER:-pi}"
+export HB_INSTALL_USER
 
-export HB_INSTALL_HOME
 HB_INSTALL_HOME=$(eval echo ~"$HB_INSTALL_USER")
+export HB_INSTALL_HOME
 
-# ── Load shared config ────────────────────────────────────────────────────────
+# ── Load shared config and libraries ─────────────────────────────────────────
 source "$HB_REPO_DIR/pi/lib/config.sh"
+source "$HB_REPO_DIR/pi/lib/packages.sh"
+source "$HB_REPO_DIR/pi/lib/udev.sh"
+source "$HB_REPO_DIR/pi/lib/daemon.sh"
+source "$HB_REPO_DIR/pi/lib/systemd.sh"
+source "$HB_REPO_DIR/pi/lib/bluetooth.sh"
 
-# ── Banner ────────────────────────────────────────────────────────────────────
+# ── Banner ───────────────────────────────────────────────────────────────────
 echo -e "${HB_BOLD}${HB_CYAN}"
 echo "  ██╗  ██╗ █████╗ ███╗   ███╗██████╗ ██████╗ ██╗██████╗  ██████╗ ███████╗"
 echo "  ██║  ██║██╔══██╗████╗ ████║██╔══██╗██╔══██╗██║██╔══██╗██╔════╝ ██╔════╝"
@@ -100,9 +63,7 @@ echo ""
 hb_info "Installing for user: $HB_INSTALL_USER"
 hb_info "Install directory:   $HB_INSTALL_DIR"
 
-# =============================================================================
-#  Confirm before making any changes
-# =============================================================================
+# ── Confirm before making any changes ────────────────────────────────────────
 hb_step "Configuration"
 echo ""
 echo -e "  ${HB_BOLD}Ready to install with these settings:${HB_NC}"
@@ -116,23 +77,11 @@ echo ""
 read -rp "  Proceed? [y/N]: " HB_CONFIRM
 [[ "$HB_CONFIRM" =~ ^[Yy]$ ]] || { hb_info "Aborted — no changes made."; exit 0; }
 
-# =============================================================================
-#  Run installation steps
-# =============================================================================
-
-source "$HB_REPO_DIR/pi/lib/packages.sh"
+# ── Run installation steps ──────────────────────────────────────────────────
 hb_install_packages
-
-source "$HB_REPO_DIR/pi/lib/udev.sh"
 hb_install_udev
-
-source "$HB_REPO_DIR/pi/lib/daemon.sh"
 hb_install_daemon
-
-source "$HB_REPO_DIR/pi/lib/systemd.sh"
 hb_install_systemd
-
-source "$HB_REPO_DIR/pi/lib/bluetooth.sh"
 hb_configure_bluetooth
 
 cp "$HB_REPO_DIR/pi/diagnose.sh"  "$HB_DIAGNOSE_SCRIPT"
@@ -143,9 +92,7 @@ chown "$HB_INSTALL_USER:$HB_INSTALL_USER" \
 
 hb_try hb_start_service
 
-# =============================================================================
-#  Summary
-# =============================================================================
+# ── Summary ───────────────────────────────────────────────────────────────
 echo ""
 echo -e "${HB_BOLD}${HB_GREEN}════════════════════════════════════════${HB_NC}"
 echo -e "${HB_BOLD}${HB_GREEN}  HamBridge installation complete!${HB_NC}"

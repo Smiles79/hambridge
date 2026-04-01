@@ -6,30 +6,11 @@ Press a button on your phone → query the radio's frequency via CAT → record 
 
 The radio's microphone, PTT, and front panel are completely unaffected.
 
-## Supported Hardware
-
-| Radio | Interface |
-|-------|-----------|
-| Yaesu FT-891 | DR-891 |
-| Yaesu FT-747GX | Digirig Mobile |
 
 ## Installation
 
 ```bash
-sudo apt update
-```
-
-```bash
-sudo apt upgrade -y
-```
-
-```bash
-curl -sSL https://raw.githubusercontent.com/Smiles79/hambridge/main/pi/install.sh | sudo bash
-```
-
-Or with a local copy:
-```bash
-sudo bash install.sh
+curl -sSL https://github.com/Smiles79/hambridge/archive/main.tar.gz | tar -xz -C /tmp && bash /tmp/hambridge-main/install.sh
 ```
 
 ## Repository Structure
