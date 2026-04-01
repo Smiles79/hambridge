@@ -23,23 +23,27 @@ hb_try() { "$@" || true; }
 # ── Locate repo dir (IMPROVED) ───────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo "")"
 
+#!/bin/bash
+
+# =============================================================================
+# HamBridge installer — improved branch handling
+# =============================================================================
+
+# Directory where the script resides
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# 1️⃣ Detect branch
+# Use first argument if provided, otherwise default to "main"
+BRANCH="${1:-main}"
+
+# 2️⃣ Check if running inside a local Git repo
 if git -C "$SCRIPT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     echo "==> Using LOCAL repository"
     HB_REPO_DIR="$SCRIPT_DIR"
 else
     echo "==> Using REMOTE repository"
-#new
-    if [[ "$0" =~ ^https?:// ]]; then
-    # Extract branch from URL: raw.githubusercontent.com/user/repo/branch/install.sh
-    # Bash regex capture group
-        if [[ "$0" =~ raw\.githubusercontent\.com/[^/]+/[^/]+/([^/]+)/ ]]; then
-        BRANCH="${BASH_REMATCH[1]}"
-        echo "Detected remote branch: $BRANCH"
-    fi
-fi
-#new
-    #BRANCH="${1:-main}"
 
+    # Temporary directory to extract remote repo
     HB_REPO_DIR="/tmp/hambridge-install/pi"
 
     rm -rf "$HB_REPO_DIR"
@@ -52,6 +56,8 @@ fi
     tar -xz -C "$HB_REPO_DIR" --strip-components=1 -f /tmp/hambridge.tar.gz
     rm -f /tmp/hambridge.tar.gz
 fi
+
+echo "HamBridge ready at: $HB_REPO_DIR"
 
 export HB_REPO_DIR
 
