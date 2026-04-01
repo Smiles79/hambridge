@@ -30,6 +30,17 @@ else
     echo "==> Using REMOTE repository"
 
     BRANCH="${1:-main}"
+#new
+if [[ "$0" =~ ^https?:// ]]; then
+    # Extract branch from URL: raw.githubusercontent.com/user/repo/branch/install.sh
+    # Bash regex capture group
+    if [[ "$0" =~ raw\.githubusercontent\.com/[^/]+/[^/]+/([^/]+)/ ]]; then
+        BRANCH="${BASH_REMATCH[1]}"
+        echo "Detected remote branch: $BRANCH"
+    fi
+fi
+#new
+
     HB_REPO_DIR="/tmp/hambridge-install/pi"
 
     rm -rf "$HB_REPO_DIR"
