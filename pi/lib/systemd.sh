@@ -44,7 +44,8 @@ hb_start_service() {
     systemctl start "$HB_SERVICE_NAME" 2>/dev/null || true
 
     sleep 2
-
+    
+    rfkill unblock bluetooth
     bluetoothctl power on
     bluetoothctl discoverable on
     bluetoothctl pairable on
